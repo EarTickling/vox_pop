@@ -1,0 +1,12 @@
+<input type="file" accept="audio/*" capture id="recorder">
+<audio id="player" controls></audio>
+<script>
+  var recorder = document.getElementById('recorder');
+  var player = document.getElementById('player');
+
+  recorder.addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    // Do something with the audio file.
+    player.src =  URL.createObjectURL(file);
+  });
+</script>
