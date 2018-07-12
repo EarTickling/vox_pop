@@ -1,0 +1,46 @@
+
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VoxPop Audio Recording</title>
+  </head>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 8px;
+    }
+  </style>
+  <body>
+    <input type="file" accept="audio/*" capture id="recorder">
+    <audio id="player" controls></audio>
+
+    <script type="text/javascript">
+      // var recorder = document.getElementById('recorder');
+      // var player = document.getElementById('player');
+
+      // recorder.addEventListener('change', function(e) {
+      //   var file = e.target.files[0];
+      //   // Do something with the audio file.
+      //   player.src =  URL.createObjectURL(file);
+      // });
+      (function(window, document) {
+        function receiveMessage(event) {
+          switch (event.data) {
+            case 'autoHeight':
+              window.parent.postMessage({
+                height: document.body.offsetHeight,
+                id: '2'
+              }, event.origin);
+              break;
+            default:
+          }
+        };
+        window.addEventListener("message", receiveMessage, false);
+      }(window, document));
+    </script>
+  </body>
+</html>

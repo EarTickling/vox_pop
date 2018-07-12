@@ -1,140 +1,115 @@
 /*!
- * VoxPop JS Plugin
- * Saves audio messages to EarTickling's Amplify
- * Author: Eoin Thomas O'Hehir
+ * VoxPop JS Embed Script
+ * Saves audio messages
+ * 
+ * Example Usage:
+ *
+  <blockquote class="voxpop-embed" data-target="./voxpop.html" * data-conversation-id="2">
+    <p>
+      Thoughts? Leave a voicemail at this number: <a href="tel:8888888888">(888) 888-8888</a>
+    </p>
+  </blockquote>
+  <script async src="voxpop.js"></script>
+ *
  */
 
-// var recorder = document.getElementById('recorder');
-// var player = document.getElementById('player');
+const win = window;
+const APP = win.VOXPOP || {
+  name: 'voxpop',
+  hasAttached: false,
+  frames: {},
+  origin: null
+};
 
-// recorder.addEventListener('change', function(e) {
-//   var file = e.target.files[0];
-//   // Do something with the audio file.
-//   player.src =  URL.createObjectURL(file);
-// });
+function canPostMessage() {
+  return !!win.postMessage;
+}
 
-(function (root, factory) {
-  if ( typeof define === 'function' && define.amd ) {
-    define([], factory(root));
-  } else if ( typeof exports === 'object' ) {
-    module.exports = factory(root);
-  } else {
-    root.voxpop = factory(root); // @todo rename plugin
+function receiveMessage(event) {
+  if (event.origin === APP.origin && event.data) {
+    APP.frames[event.data.id].setAttribute('height', event.data.height);
   }
-})(typeof global !== "undefined" ? global : this.window || this.global, function (root) {
-  'use strict';
+}
 
-  //////////////////////////////
-  // Variables
-  //////////////////////////////
+function setFrameHeight() {
+  const frame = this;
+  if (frame && frame.contentWindow) {
+    frame.contentWindow.postMessage('autoHeight', APP.origin);
+  }
+}
 
-  var voxpop = {}; // Object for public APIs
-  var supports = !!document.querySelector && !!root.addEventListener; // Feature test
-  var settings;
+function setFrameHeights() {
+  const frames = APP.frames;
+  Object.keys(frames).forEach((key) => {
+    frames[key].contentWindow.postMessage('autoHeight', APP.origin);
+  });
+}
 
-  // Default settings
-  var defaults = {
-    someVar: 123,
-    initClass: 'js-voxpop',
-    callbackBefore: function () {},
-    callbackAfter: function () {}
-  };
-
-  //////////////////////////////
-  // Private Functions
-  //////////////////////////////
-
-  /**
-   * A simple forEach() implementation for Arrays, Objects and NodeLists
-   * @private
-   * @param {Array|Object|NodeList} collection Collection of items to iterate
-   * @param {Function} callback Callback function for each iteration
-   * @param {Array|Object|NodeList} scope Object/NodeList/Array that forEach is iterating over (aka `this`)
-   */
-  function forEach(collection, callback, scope) {
-    if (Object.prototype.toString.call(collection) === '[object Object]') {
-      for (var prop in collection) {
-        if (Object.prototype.hasOwnProperty.call(collection, prop)) {
-          callback.call(scope, collection[prop], prop, collection);
-        }
-      }
-    } else {
-      for (var i = 0, len = collection.length; i < len; i++) {
-        callback.call(scope, collection[i], i, collection);
-      }
+function limit(func, wait, debounce) {
+  let timeout;
+  return function () {
+    function throttler() {
+      timeout = undefined;
+      func.call(this);
+    }
+    if (debounce) {
+      clearTimeout(timeout);
+    }
+    if (debounce || !timeout) {
+      timeout = setTimeout(throttler, wait);
     }
   };
+}
 
-  /**
-   * Merge defaults with user options
-   * @private
-   * @param {Object} defaults Default settings
-   * @param {Object} options User options
-   * @returns {Object} Merged values of defaults and options
-   */
-  function extend( defaults, options ) {
-    var extended = {};
+function throttle(func, wait) {
+  return limit(func, wait, false);
+}
 
-    forEach(defaults, function (value, prop) {
-      extended[prop] = defaults[prop];
-    });
+(function (doc) {
+  const elemClass = `${APP.name}-embed`;
+  const elem = doc.getElementsByClassName(elemClass)[0];
+  const parent = elem.parentNode;
+  let srcLink;
+  let frame;
+  let id;
 
-    forEach(options, function (value, prop) {
-      extended[prop] = options[prop];
-    });
+  if (elem) {
+    id = elem.attributes['data-conversation-id'].value;
+    frame = doc.createElement('iframe');
+    frame.src = elem.attributes['data-target'].value;
+    frame.id = `${APP.name}-${id}`;
+    frame.setAttribute('allowTransparency', true);
+    frame.setAttribute('scrolling', 'no');
+    frame.setAttribute('height', 0);
+    frame.setAttribute('width', '100%');
+    frame.style.minWidth = '320px';
+    frame.setAttribute('frameBorder', 0);
+    parent.insertBefore(frame, elem);
+    parent.removeChild(elem);
+    APP.frames[id] = frame;
 
-    return extended;
-  };
+    if (canPostMessage()) {
+      if (!APP.hasAttached) {
+        srcLink = doc.createElement('A');
+        srcLink.setAttribute('href', frame.src);
+        if (srcLink.port !== "") {
+          // Adds port for local testing, remove in production
+          APP.origin = `${srcLink.protocol}//${srcLink.hostname}:${srcLink.port}`;
+        } else {
+          APP.origin = `${srcLink.protocol}//${srcLink.hostname}`;
+        }
+        win.addEventListener('message', receiveMessage, false);
+        win.addEventListener('resize', throttle(setFrameHeights, 100), false);
+        APP.hasAttached = true;
+      }
+      frame.onload = setFrameHeight;
+    } else {
+      // Old browser, default to content overflow scroll
+      frame.setAttribute('scrolling', 'yes');
+      frame.setAttribute('height', 'auto');
+    }
+    win.VOXPOP = APP;
+  }
+}(document));
 
-  //////////////////////////////
-  // Public APIs
-  //////////////////////////////
 
-  /**
-   * Destroy the current initialization.
-   * @public
-   */
-  voxpop.destroy = function() {
-
-    // If plugin isn't already initialized, stop
-    if ( !settings ) return;
-
-    // Remove init class for conditional CSS
-    document.documentElement.classList.remove( settings.initClass );
-
-    // @todo Undo any other init functions...
-
-    // Remove event listeners
-    document.removeEventListener('click', eventHandler, false);
-
-    // Reset variables
-    settings = null;
-  };
-
-  /**
-   * Initialize Plugin
-   * @public
-   * @param {Object} options User settings
-   */
-  voxpop.init = function(options) {
-
-    // Feature test
-    if ( !supports ) return;
-
-    // Destroy any existing initializations
-    voxpop.destroy();
-
-    // Merge user options with defaults
-    settings = extend( defaults, options || {} );
-
-    // Add class to HTML element to activate conditional CSS
-    document.documentElement.classList.add( settings.initClass );
-
-    // @todo Do something...
-
-    // Listen for events
-    document.addEventListener('click', eventHandler, false);
-  };
-
-  return voxpop;
-});
